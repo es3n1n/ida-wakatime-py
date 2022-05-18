@@ -15,7 +15,8 @@
 ### Tested on:
 - [ ] v7.7 SP 1
 - [x] v7.7
-- [x] v7.5 
+- [x] v7.5
+- [x] v7.2
 
 _Please help me in testing this plugin on other versions and open a pull request_
 
