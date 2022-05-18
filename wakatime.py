@@ -767,7 +767,7 @@ class SendHeartbeatsThread(threading.Thread):
 
     def send_heartbeats(self):
         heartbeat = build_heartbeat(**self.heartbeat)
-        ua = 'IDA_PRO/%s/%s' % (ida_ver, VERSION)
+        ua = 'ida-pro/%s ida-pro-wakatime/%s' % (ida_ver, VERSION)
         cmd = [
             get_cli_location(),
             '--entity', heartbeat['entity'],
