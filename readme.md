@@ -23,6 +23,11 @@ _Please help me in testing this plugin on other versions and open a pull request
 ![img](https://i.imgur.com/tN1xsdm.png) \
 ![img2](https://i.imgur.com/1A3XgWG.png)
 
+### Troubleshooting:
+1. If by any chance on the first run ida doesn't ask you for your api key and **there are no errors in console**, that means that you've used wakatime plugins before and your apikey was already set in `~\.wakatime.cfg`
+
+If you're reaching an unknown error you are free to open an issue.
+
 ### Contributing
 Any contributions you make are **greatly appreciated**.
 
