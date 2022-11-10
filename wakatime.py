@@ -808,10 +808,8 @@ class SendHeartbeatsThread(threading.Thread):
             process = Popen(cmd, stdin=stdin, stdout=PIPE, stderr=STDOUT)
             output, _err = process.communicate(input=inp)
             retcode = process.poll()
-            if (not retcode or retcode == 102) and not output:
-                pass  # @note: @es3n1n: sent
-            else:
-                log(ERROR, 'Error #1')
+            if retcode and retcode not in [102, 112]:
+                log(ERROR, 'Error #{0}'.format(retcode))
             if output:
                 log(ERROR, 'wakatime-core output: {0}'.format(output))
         except:  # noqa
