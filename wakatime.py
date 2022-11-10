@@ -808,7 +808,7 @@ class SendHeartbeatsThread(threading.Thread):
             process = Popen(cmd, stdin=stdin, stdout=PIPE, stderr=STDOUT)
             output, _err = process.communicate(input=inp)
             retcode = process.poll()
-            if (not retcode or retcode == 102) and not output:
+            if (not retcode or retcode == 102 or retcode == 112) and not output:
                 pass  # @note: @es3n1n: sent
             else:
                 log(ERROR, 'Error #1')
