@@ -19,7 +19,7 @@ import threading
 import time
 import traceback
 import webbrowser
-import zlib
+from pathlib import Path
 from subprocess import PIPE
 from subprocess import STDOUT
 from zipfile import ZipFile
@@ -55,13 +55,7 @@ is_py2 = (sys.version_info[0] == 2)
 is_py3 = (sys.version_info[0] == 3)
 
 # @note: @es3n1n: plugin-related stuff
-VERSION = "1.0"
-NETNODE_NAME = "$ WakaTime"
-
-# @note: @es3n1n: netnode-related stuff
-BLOB_SIZE = 1024
-STR_KEYS_TAG = 'N'
-STR_TO_INT_MAP_TAG = 'O'
+VERSION = "1.1"
 
 # @note: @es3n1n: ida-related stuff
 ida_ver = idaapi.get_kernel_version()
@@ -103,222 +97,6 @@ HEARTBEAT_FREQUENCY = 2  # minutes between logging heartbeat when editing file
 SEND_BUFFER_SECONDS = 30  # seconds between sending buffered heartbeats to API
 
 
-# @credits: https://github.com/williballenthin/ida-netnode
-class NetnodeCorruptError(RuntimeError):
-    pass
-
-
-class Netnode(object):
-    def __init__(self, netnode_name):
-        self._netnode_name = netnode_name
-        # self._n = idaapi.netnode(netnode_name, namelen=0, do_create=True)
-        self._n = idaapi.netnode(netnode_name, 0, True)
-
-    @staticmethod
-    def _decompress(data):
-        """
-        args:
-          data (bytes): the data to decompress
-        returns:
-          bytes: the decompressed data.
-        """
-        return zlib.decompress(data)
-
-    @staticmethod
-    def _compress(data):
-        """
-        args:
-          data (bytes): the data to compress
-        returns:
-          bytes: the compressed data.
-        """
-        return zlib.compress(data)
-
-    @staticmethod
-    def _encode(data):
-        """
-        args:
-          data (object): the data to serialize to json.
-        returns:
-          bytes: the ascii-encoded serialized data buffer.
-        """
-        return json.dumps(data).encode("ascii")
-
-    @staticmethod
-    def _decode(data):
-        """
-        args:
-          data (bytes): the ascii-encoded json serialized data buffer.
-        returns:
-          object: the deserialized object.
-        """
-        return json.loads(data.decode("ascii"))
-
-    def _get_next_slot(self, tag):
-        """
-        get the first unused supval table key, or 0 if the
-         table is empty.
-        useful for filling the supval table sequentially.
-        """
-        slot = self._n.suplast(tag)
-        if slot is None or slot == idaapi.BADNODE:
-            return 0
-        else:
-            return slot + 1
-
-    def _strdel(self, key):
-        assert isinstance(key, str)
-
-        did_del = False
-        storekey = self._n.hashval(key, STR_TO_INT_MAP_TAG)
-        if storekey is not None:
-            storekey = int(storekey.decode('utf-8'))
-            self._n.delblob(storekey, STR_KEYS_TAG)
-            self._n.hashdel(key, STR_TO_INT_MAP_TAG)
-            did_del = True
-        if self._n.hashval(key):
-            self._n.hashdel(key)
-            did_del = True
-
-        if not did_del:
-            raise KeyError("'{}' not found".format(key))
-
-    def _strset(self, key, value):
-        assert isinstance(key, str)
-        assert value is not None
-
-        try:
-            self._strdel(key)
-        except KeyError:
-            pass
-
-        if len(value) > BLOB_SIZE:
-            storekey = self._get_next_slot(STR_KEYS_TAG)
-            self._n.setblob(value, storekey, STR_KEYS_TAG)
-            self._n.hashset(key, str(storekey).encode('utf-8'),
-                            STR_TO_INT_MAP_TAG)
-        else:
-            self._n.hashset(key, bytes(value))
-
-    def _strget(self, key):
-        assert isinstance(key, str)
-
-        storekey = self._n.hashval(key, STR_TO_INT_MAP_TAG)
-        if storekey is not None:
-            storekey = int(storekey.decode('utf-8'))
-            v = self._n.getblob(storekey, STR_KEYS_TAG)
-            if v is None:
-                raise NetnodeCorruptError()
-            return v
-
-        v = self._n.hashval(key)
-        if v is not None:
-            return v
-
-        raise KeyError("'{}' not found".format(key))
-
-    def __getitem__(self, key):
-        if isinstance(key, str):
-            v = self._strget(key)
-        else:
-            raise TypeError("cannot use {} as key".format(type(key)))
-
-        data = self._decompress(v)
-        return self._decode(data)
-
-    def __setitem__(self, key, value):
-        """
-        does not support setting a value to None.
-        value must be json-serializable.
-        key must be a string or integer.
-        """
-        assert value is not None
-
-        v = self._compress(self._encode(value))
-        if isinstance(key, str):
-            self._strset(key, v)
-        else:
-            raise TypeError("cannot use {} as key".format(type(key)))
-
-    def __delitem__(self, key):
-        if isinstance(key, str):
-            self._strdel(key)
-        else:
-            raise TypeError("cannot use {} as key".format(type(key)))
-
-    def get(self, key, default=None):
-        try:
-            return self[key]
-        except (KeyError, zlib.error):
-            return default
-
-    def __contains__(self, key):
-        try:
-            if self[key] is not None:
-                return True
-            return False
-        except (KeyError, zlib.error):
-            return False
-
-    def _iter_str_keys_small(self):
-        # string keys for all small values
-        if using_ida7api:
-            i = self._n.hashfirst()
-        else:
-            i = self._n.hash1st()  # noqa
-        while i != idaapi.BADNODE and i is not None:
-            yield i
-            if using_ida7api:
-                i = self._n.hashnext(i)
-            else:
-                i = self._n.hashnxt(i)  # noqa
-
-    def _iter_str_keys_large(self):
-        # string keys for all big values
-        if using_ida7api:
-            i = self._n.hashfirst(STR_TO_INT_MAP_TAG)
-        else:
-            i = self._n.hash1st(STR_TO_INT_MAP_TAG)  # noqa
-        while i != idaapi.BADNODE and i is not None:
-            yield i
-            if using_ida7api:
-                i = self._n.hashnext(i, STR_TO_INT_MAP_TAG)
-            else:
-                i = self._n.hashnxt(i, STR_TO_INT_MAP_TAG)  # noqa
-
-    def iterkeys(self):
-        for key in self._iter_str_keys_small():
-            yield key
-
-        for key in self._iter_str_keys_large():
-            yield key
-
-    def keys(self):
-        return [k for k in list(self.iterkeys())]
-
-    def itervalues(self):
-        for k in list(self.keys()):
-            yield self[k]
-
-    def values(self):
-        return [v for v in list(self.itervalues())]
-
-    def iteritems(self):
-        for k in list(self.keys()):
-            yield k, self[k]
-
-    def items(self):
-        return [(k, v) for k, v in list(self.iteritems())]
-
-    def kill(self):
-        self._n.kill()
-        self._n = idaapi.netnode(self._netnode_name, 0, True)
-
-
-# @note: @es3n1n: Initializing global netnode for config
-NETNODE = Netnode(NETNODE_NAME)
-
-
 # @note: @es3n1n: Utils
 class Popen(subprocess.Popen):
     """Patched Popen to prevent opening cmd window on Windows platform."""
@@ -335,8 +113,42 @@ class Popen(subprocess.Popen):
         super(Popen, self).__init__(*args, **kwargs)
 
 
+class Config:
+    path = Path(__file__).parent.resolve().absolute() / 'wakatime.config.json'
+    _cached = None
+
+    @classmethod
+    def read(cls):
+        if cls._cached is not None:
+            return cls._cached
+
+        if not cls.path.exists():
+            cls._cached = dict()
+            return cls._cached
+
+        try:
+            cls._cached = json.loads(cls.path.read_text())
+        except json.JSONDecodeError:
+            cls._cached = dict()
+        return cls._cached
+
+    @classmethod
+    def write(cls, value):
+        cls.path.write_text(json.dumps(value))
+
+    @classmethod
+    def get_var(cls, key, default=None):
+        return cls.read().get(key, default)
+
+    @classmethod
+    def set_var(cls, key, value):
+        cfg = cls.read()
+        cfg[key] = value
+        cls.write(cfg)
+
+
 def log(lvl, message, *args, **kwargs):
-    if lvl == DEBUG and NETNODE.get('debug', 'false') == 'false':
+    if lvl == DEBUG and Config.get_var('debug', 'false') == 'false':
         return
 
     msg = message
@@ -695,7 +507,7 @@ class ApiKey(object):
         if self._key:
             return self._key
 
-        key = NETNODE.get('api_key')
+        key = Config.get_var('api_key')
         if key:
             self._key = key
             return self._key
@@ -714,9 +526,8 @@ class ApiKey(object):
         return self._key
 
     def write(self, key):
-        global NETNODE
         self._key = key
-        NETNODE['api_key'] = str(key)
+        Config.set_var('api_key', key)
 
 
 APIKEY = ApiKey()
@@ -989,7 +800,8 @@ class WakaTimePlugin(idaapi.plugin_t):
 
     @staticmethod
     def run(*args):  # noqa
-        dbg = NETNODE.get('debug', "false")
+        dbg = Config.get_var('debug', "false")
+
         fmt = '''AUTOHIDE NONE
 WakaTime integration for IDA Pro
 Plugin version: v{}
@@ -1000,7 +812,7 @@ Debug mode: {}'''.format(VERSION, WAKATIME_CLI_VERSION, dbg)
 
         if ret == 1:
             dbg = "false" if dbg == "true" else "true"
-            NETNODE['debug'] = dbg
+            Config.set_var('debug', dbg)
             log(INFO, 'Set debug to: {}'.format(dbg))
 
         if ret == 0:

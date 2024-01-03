@@ -13,7 +13,9 @@
 6. That's pretty much it.
 
 ### Tested on:
-- [ ] v7.7 SP 1
+- [x] v8.3
+- [x] v7.7 SP 3
+- [x] v7.7 SP 1
 - [x] v7.7
 - [x] v7.5
 - [x] v7.2
@@ -39,8 +41,7 @@ Any contributions you make are **greatly appreciated**.
 5. Open a Pull Request
 
 ### Thanks to:
-[wakatime/sublime-wakatime](https://github.com/wakatime/sublime-wakatime) - Pretty much everything related to `wakatime-cli`\
-[williballenthin/ida-netnode](https://github.com/williballenthin/ida-netnode) - `Netnode` class
+[wakatime/sublime-wakatime](https://github.com/wakatime/sublime-wakatime) - Pretty much everything related to `wakatime-cli`
 
 ### Topics:
 [unknowncheats](https://www.unknowncheats.me/forum/general-programming-and-reversing/499989-wakatime-integration-ida-pro.html) \
