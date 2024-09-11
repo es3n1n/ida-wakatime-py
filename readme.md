@@ -13,6 +13,7 @@
 6. That's pretty much it.
 
 ### Tested on:
+- [x] v9.0 beta
 - [x] v8.3
 - [x] v7.7 SP 3
 - [x] v7.7 SP 1
@@ -42,7 +43,3 @@ Any contributions you make are **greatly appreciated**.
 
 ### Thanks to:
 [wakatime/sublime-wakatime](https://github.com/wakatime/sublime-wakatime) - Pretty much everything related to `wakatime-cli`
-
-### Topics:
-[unknowncheats](https://www.unknowncheats.me/forum/general-programming-and-reversing/499989-wakatime-integration-ida-pro.html) \
-[yougame](https://yougame.biz/threads/253788)
